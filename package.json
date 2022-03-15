@@ -1,0 +1,32 @@
+{
+  "name": "vaas-core",
+  "version": "1.0.0",
+  "description": "Virtual as a Service Core",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run build && node ./build/test.js",
+    "build": "rm -rf ./build/ && npx tsc",
+    "prepublish": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/virtual-less/vaas-core.git"
+  },
+  "keywords": [
+    "virtual",
+    "service",
+    "server",
+    "less"
+  ],
+  "devDependencies": {
+    "@types/node": "^16.11.26",
+    "typescript": "^4.4.4"
+  },
+  "author": "zy445566",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/virtual-less/vaas-core/issues"
+  },
+  "homepage": "https://github.com/virtual-less/vaas-core#readme",
+  "dependencies": {}
+}
