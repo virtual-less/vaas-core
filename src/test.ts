@@ -24,7 +24,7 @@ const testUnit = {
                 hello.a = 1
                 exports.hello=hello;
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
+            filename:path.join(__dirname,'test.scope.customContext.js'),
             customContext:{
                 hello
             }
@@ -34,20 +34,13 @@ const testUnit = {
             1,
             'test.scope.customContext error'
         )
-        
-        assert.equal(
-            // @ts-ignore
-            hello.a,
-            undefined,
-            'test.scope.customContext error'
-        )
     },
     [Symbol('test.scope.customContext.Array')] : async function() {
         const exports = dynamicRun({
             code:`
                 exports.res=Array;
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
+            filename:path.join(__dirname,'test.scope.customContext.Array.js'),
             customContext:{
                 Array:null
             }
@@ -63,7 +56,10 @@ const testUnit = {
             code:`
                 process.env.a = 1
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
+            filename:path.join(__dirname,'test.scope.process.js'),
+            customContext:{
+                process
+            }
         })    
         assert.equal(
             // @ts-ignore
@@ -73,14 +69,24 @@ const testUnit = {
         )
     },
     [Symbol('test.scope.instanceof')] : async function() {
+        const customContext:{[key:string]:any} = {}
         const exports = dynamicRun({
             code:`
             exports.hello=[]
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
+            filename:path.join(__dirname,'test.scope.instanceof.js'),
+            customContext
+        })
+        customContext.hello = exports.hello
+        const exportsOther = dynamicRun({
+            code:`
+            exports.res = hello instanceof Array
+            `,
+            filename:path.join(__dirname,'test.scope.instanceof.exportsOther.js'),
+            customContext
         })
         assert.equal(
-            exports.hello instanceof Array,
+            exportsOther.res,
             true,
             'test.scope.instanceof error'
         )
@@ -90,7 +96,7 @@ const testUnit = {
             code:`
             Array.aaa = 111
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
+            filename:path.join(__dirname,'test.scope.Array.js'),
         })
         assert.equal(
             // @ts-ignore
@@ -104,11 +110,9 @@ const testUnit = {
             code:`
             exports.res = require('a')
             `,
-            filename:path.join(__dirname,'test.run.add.js'),
-            requireDependenceFunc:(name)=>{
-                return {
-                    name
-                }
+            filename:path.join(__dirname,'test.require.js'),
+            createRequireFunc:()=>{
+                return (name)=>{ return {name} }
             }
         })
         assert.deepEqual(

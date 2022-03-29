@@ -2,20 +2,27 @@ import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import * as  path from 'path';
 import * as  vm from 'vm';
+import * as  os from 'os';
 
 type ObjectMap = {
     [key:string]:any
 }
 
 function genModuleRequire({
-    filename, customContext, requireDependenceFunc
+    filename, vmTimeout, customContext, createRequireFunc
 }:{
-    filename:string,customContext:ObjectMap,requireDependenceFunc:Function
+    filename:string,
+    vmTimeout:number,
+    customContext:ObjectMap,
+    createRequireFunc:Function
 }):Function {
     return (moduleId) => {
-        const module = requireDependenceFunc(moduleId)
-        if(module) {
-            return module
+        const dependenceRequire = createRequireFunc(filename, customContext)
+        if(dependenceRequire) {
+            const module = dependenceRequire(moduleId)
+            if(module) {
+                return module
+            }
         }
         const newRequire:NodeRequire = createRequire(filename);
         const modulePath = newRequire.resolve(moduleId);
@@ -24,9 +31,10 @@ function genModuleRequire({
         ) {
             return dynamicRun({
                 code:readFileSync(modulePath).toString(),
+                vmTimeout,
                 filename:modulePath, 
                 customContext, 
-                requireDependenceFunc
+                createRequireFunc
             })
         }
         throw new Error(`模块[${moduleId}]不存在`)
@@ -85,72 +93,57 @@ function proxyData(data) {
 export type dynamicRunParamsType = {
     code:string,
     filename:string,
+    vmTimeout?:number,
     customContext?:ObjectMap,
-    requireDependenceFunc?:Function
+    createRequireFunc?:Function
 }
 
 export function dynamicRun({
-    code,filename,customContext={},requireDependenceFunc=()=>{}
+    code,
+    filename,
+    vmTimeout=30000,
+    customContext = {},
+    createRequireFunc=()=>{}
 }:dynamicRunParamsType) {
     const newRequire:Function = genModuleRequire({
-        filename, customContext, requireDependenceFunc
+        filename, vmTimeout, customContext, createRequireFunc
     });
-    const newModule:{
-        exports:{
-            [key:string]:any
+    if(!vm.isContext(customContext)){
+        for (const key in customContext) {
+            customContext[key] = proxyData(customContext[key])
         }
+        vm.createContext(customContext)
+    }
+    const newModule:{
+        exports:ObjectMap
     } = {exports:{}}
-    const proxyContext = proxyData({
-        console,
-        setTimeout,
-        setInterval,
-        clearInterval,
-        clearTimeout,
-        process,
-        Buffer,
-        Array,
-        Object,
-        Function,
-        Symbol,
-        Promise,
-        Set,
-        WeakSet,
-        Map,
-        WeakMap,
-        ArrayBuffer,
-        DataView,
-        Int8Array,
-        Uint8Array,
-        Int16Array,
-        Uint16Array,
-        Int32Array,
-        Uint32Array,
-        Float32Array,
-        Float64Array,
-        Proxy,
-        ...customContext
-    })
-    const ctx = {
+    const moduleParams = {
         require:newRequire,
         module:newModule,
         exports:newModule.exports,
         __filename:filename,
         __dirname:path.dirname(filename),
     }
-    const proxyContextKeys = Reflect.ownKeys(proxyContext)
-    for(const key of proxyContextKeys) {
-        ctx[key] = proxyContext[key]
-    }
-    const ctxKeys:string[] = Object.keys(ctx)
-    const ctxValues:any[] = Object.values(ctx)
-    const dynamicFunction = vm.compileFunction(
-        code,
-        ctxKeys,
-        {
+    if(!customContext.moduleData) {customContext.moduleData = {}}
+    customContext.moduleData[filename] = moduleParams;
+    vm.runInContext(
+        `moduleData['${filename}'].moduleFunction = function (
+            require,module,exports,__filename,__dirname
+        ) {`+os.EOL+
+        code
+        +os.EOL+`};
+        moduleData['${filename}'].moduleFunction(
+            moduleData['${filename}'].require,
+            moduleData['${filename}'].module,
+            moduleData['${filename}'].exports,
+            moduleData['${filename}'].__filename,
+            moduleData['${filename}'].__dirname
+        )`, 
+        customContext, {
             filename:filename,
+            lineOffset:1,
+            timeout:vmTimeout
         }
     )
-    // @ts-ignore
-    dynamicFunction(...ctxValues)
     return newModule.exports;
 }
