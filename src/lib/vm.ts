@@ -4,73 +4,57 @@ import * as  path from 'path';
 import * as  vm from 'vm';
 import * as  os from 'os';
 
-type ObjectMap = {
-    [key:string]:any
-}
-
 function genModuleRequire({
-    filename, vmTimeout, customContext, createRequireFunc
+    filename, vmTimeout, context, extendVer
 }:{
     filename:string,
     vmTimeout:number,
-    customContext:ObjectMap,
-    createRequireFunc:Function
+    context:NodeJS.Dict<any>,
+    extendVer:NodeJS.Dict<any>,
 }):Function {
     return (moduleId) => {
-        const dependenceRequire = createRequireFunc(filename, customContext)
-        if(dependenceRequire) {
-            const module = dependenceRequire(moduleId)
-            if(module) {
-                return module
-            }
-        }
         const newRequire:NodeRequire = createRequire(filename);
         const modulePath = newRequire.resolve(moduleId);
-        if(
-            moduleId[0]==='.' ||  moduleId[0]==='/'
-        ) {
-            return dynamicRun({
-                code:readFileSync(modulePath).toString(),
-                vmTimeout,
-                filename:modulePath, 
-                customContext, 
-                createRequireFunc
-            })
-        }
-        throw new Error(`模块[${moduleId}]不存在`)
+        return innerRun({
+            code:readFileSync(modulePath).toString(),
+            vmTimeout,
+            filename:modulePath, 
+            context,
+            extendVer,
+        })
     }
 }
 
-function proxyData(data) {
+export function proxyData<T extends Object>(data:T):T {
     if(
-        (typeof data!=='object' && typeof data!=='function') ||
-        data === null
+       !(data instanceof Object)
     ) {
         return data;
     }
     let proxyValue = {}
-    return new Proxy(data, {
+    return new Proxy<T>(data, {
         get(target, propKey, receiver) {
             if(!proxyValue[propKey]) {
-                proxyValue[propKey] = Reflect.get(target, propKey, receiver)
+                proxyValue[propKey] = proxyData(Reflect.get(target, propKey, receiver))
             }
             const propertyDescriptor = Reflect.getOwnPropertyDescriptor(target, propKey)
             if(propertyDescriptor && propertyDescriptor.configurable===false) {
                 return proxyValue[propKey]
             }
-            return proxyData(proxyValue[propKey]);
+            return proxyValue[propKey];
         },
         getPrototypeOf(target) {
             return proxyData(Reflect.getPrototypeOf(target));
         },
         getOwnPropertyDescriptor(target, propKey) {
+            console.log()
             if(!proxyValue[propKey]) {
                 Reflect.getOwnPropertyDescriptor(target, propKey)
             }
             return Reflect.getOwnPropertyDescriptor(proxyValue, propKey)
         },
         set(_target, propKey, value, receiver) {
-            return Reflect.set(proxyValue, propKey, value,receiver);
+            return Reflect.set(proxyValue, propKey, value, receiver);
         },
         setPrototypeOf(_target, _value) {
             return false
@@ -90,60 +74,75 @@ function proxyData(data) {
   })
 }
 
-export type dynamicRunParamsType = {
+export interface dynamicRunParamsType {
     code:string,
     filename:string,
     vmTimeout?:number,
-    customContext?:ObjectMap,
-    createRequireFunc?:Function
+    extendVer?:NodeJS.Dict<any>,
+}
+interface innerRunParamsType extends dynamicRunParamsType  {
+    context?:NodeJS.Dict<any>,
 }
 
-export function dynamicRun({
+function innerRun({
+    context,
     code,
     filename,
-    vmTimeout=30000,
-    customContext = {},
-    createRequireFunc=()=>{}
-}:dynamicRunParamsType) {
-    const newRequire:Function = genModuleRequire({
-        filename, vmTimeout, customContext, createRequireFunc
+    extendVer,
+    vmTimeout=30000
+}:innerRunParamsType) {
+    const vmRequire:Function = genModuleRequire({
+        filename, vmTimeout, context, extendVer
     });
-    if(!vm.isContext(customContext)){
-        for (const key in customContext) {
-            customContext[key] = proxyData(customContext[key])
-        }
-        vm.createContext(customContext)
-    }
-    const newModule:{
-        exports:ObjectMap
+    
+    const vmModule:{
+        exports:NodeJS.Dict<any>
     } = {exports:{}}
     const moduleParams = {
-        require:newRequire,
-        module:newModule,
-        exports:newModule.exports,
+        require:vmRequire,
+        module:vmModule,
+        exports:vmModule.exports,
         __filename:filename,
         __dirname:path.dirname(filename),
+        console:proxyData(console),
+        ...extendVer
     }
-    if(!customContext.moduleData) {customContext.moduleData = {}}
-    customContext.moduleData[filename] = moduleParams;
+    const moduleParamsKeys = Object.keys(moduleParams)
+    if(!context.moduleData) {context.moduleData = {}}
+    context.moduleData[filename] = moduleParams;
     vm.runInContext(
         `moduleData['${filename}'].moduleFunction = function (
-            require,module,exports,__filename,__dirname
+            ${moduleParamsKeys.join(',')}
         ) {`+os.EOL+
         code
         +os.EOL+`};
         moduleData['${filename}'].moduleFunction(
-            moduleData['${filename}'].require,
-            moduleData['${filename}'].module,
-            moduleData['${filename}'].exports,
-            moduleData['${filename}'].__filename,
-            moduleData['${filename}'].__dirname
+            ${moduleParamsKeys.map(key=>`moduleData['${filename}'].${key}`).join(',')}
         )`, 
-        customContext, {
+        context, {
             filename:filename,
             lineOffset:1,
             timeout:vmTimeout
         }
     )
-    return newModule.exports;
+    return vmModule.exports;
+}
+
+export function dynamicRun({
+    code,
+    filename,
+    extendVer={},
+    vmTimeout=30000
+}:dynamicRunParamsType) {
+    if(!path.isAbsolute(filename)) {
+        throw new Error('filename must be absolute path')
+    }
+    const context = vm.createContext()
+    return innerRun({
+        context,
+        code,
+        extendVer,
+        filename,
+        vmTimeout
+    })
 }

@@ -1,1 +1,1 @@
-export { dynamicRunParamsType, dynamicRun } from './lib/vm'
+export { dynamicRunParamsType, dynamicRun, proxyData } from './lib/vm'

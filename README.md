@@ -3,7 +3,7 @@ Virtual as a Service Core
 
 # example
  ```ts
-import { dynamicRun } from 'vaas-core'
+import { dynamicRun, proxyData } from 'vaas-core'
 
  const exports = dynamicRun({
     code:`
@@ -11,11 +11,10 @@ import { dynamicRun } from 'vaas-core'
         exports.res=res;
     `,
     filename:path.join(__dirname,'test.run.add.js'),
-    customContext:{
-        Array:null
-    },
-    requireDependenceFunc:(name)=>{
-        return require(name)
+    extendVer:{
+        var1:'data',
+        var2:{key:'data'},
+        process:proxyData(process) // Makes the now process variable unmodified
     }
 })
  ```
