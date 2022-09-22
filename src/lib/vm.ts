@@ -4,17 +4,45 @@ import * as  path from 'path';
 import * as  vm from 'vm';
 import * as  os from 'os';
 
+export interface DynamicRunParamsType {
+    code:string,
+    filename:string,
+    vmTimeout?:number,
+    extendVer?:NodeJS.Dict<any>,
+    overwriteRequire?:OverwriteRequire
+}
+
+export interface OverwriteRequire{
+    (callbackData:{
+        nativeRequire:NodeRequire,
+        filename:string,
+        moduleId:string,
+        modulePath:string
+    }): any
+  }
+interface innerRunParamsType extends DynamicRunParamsType  {
+    context?:vm.Context,
+}
+
 function genModuleRequire({
-    filename, vmTimeout, context, extendVer
+    filename, vmTimeout, context, extendVer, overwriteRequire
 }:{
     filename:string,
     vmTimeout:number,
-    context:NodeJS.Dict<any>,
+    context:vm.Context,
     extendVer:NodeJS.Dict<any>,
+    overwriteRequire:OverwriteRequire
 }):Function {
     return (moduleId) => {
-        const newRequire:NodeRequire = createRequire(filename);
-        const modulePath = newRequire.resolve(moduleId);
+        const nativeRequire:NodeRequire = createRequire(filename);
+        const modulePath = nativeRequire.resolve(moduleId);
+        const module = overwriteRequire({
+            nativeRequire,
+            filename,
+            moduleId,
+            modulePath
+        })
+        if(module) {return module}
         return innerRun({
             code:readFileSync(modulePath).toString(),
             vmTimeout,
@@ -74,25 +102,16 @@ export function proxyData<T extends Object>(data:T):T {
   })
 }
 
-export interface dynamicRunParamsType {
-    code:string,
-    filename:string,
-    vmTimeout?:number,
-    extendVer?:NodeJS.Dict<any>,
-}
-interface innerRunParamsType extends dynamicRunParamsType  {
-    context?:NodeJS.Dict<any>,
-}
-
 function innerRun({
     context,
     code,
     filename,
     extendVer,
-    vmTimeout=30000
+    vmTimeout=30000,
+    overwriteRequire
 }:innerRunParamsType) {
     const vmRequire:Function = genModuleRequire({
-        filename, vmTimeout, context, extendVer
+        filename, vmTimeout, context, extendVer, overwriteRequire
     });
     
     const vmModule:{
@@ -132,8 +151,9 @@ export function dynamicRun({
     code,
     filename,
     extendVer={},
-    vmTimeout=30000
-}:dynamicRunParamsType) {
+    vmTimeout=30000,
+    overwriteRequire=()=>{}
+}:DynamicRunParamsType) {
     if(!path.isAbsolute(filename)) {
         throw new Error('filename must be absolute path')
     }
@@ -143,6 +163,7 @@ export function dynamicRun({
         code,
         extendVer,
         filename,
-        vmTimeout
+        vmTimeout,
+        overwriteRequire
     })
 }

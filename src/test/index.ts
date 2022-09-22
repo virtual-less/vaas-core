@@ -134,7 +134,7 @@ const testUnit = {
                 code:`
                 while(true) {}
                 `,
-                filename:path.join(__dirname,'test.require.js'),
+                filename:path.join(__dirname,'test.vmTimeout.js'),
                 vmTimeout:3000
             })
         } catch (error) {
@@ -145,6 +145,23 @@ const testUnit = {
             )
         }
         
+    },
+    [Symbol('test.overwriteRequire')] : async function() {
+            const exports = dynamicRun({
+                code:`
+                exports.fs = require('fs')
+                `,
+                filename:path.join(__dirname,'test.overwriteRequire.js'),
+                vmTimeout:3000,
+                overwriteRequire:(callbackData)=>{
+                    return callbackData.modulePath
+                }
+            })
+            assert.equal(
+                exports.fs,
+                'fs',
+                'test.overwriteRequire error'
+            )
     },
 }
 
