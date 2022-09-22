@@ -1,9 +1,14 @@
-# vaas-core
+# @vaas/core
 Virtual as a Service Core
+
+# install
+```sh
+npm i @vaas/core
+```
 
 # example
  ```ts
-import { dynamicRun, proxyData } from 'vaas-core'
+import { dynamicRun, proxyData } from '@vaas/core'
 
  const exports = dynamicRun({
     code:`
