@@ -107,7 +107,7 @@ function innerRun({
     code,
     filename,
     extendVer,
-    vmTimeout=30000,
+    vmTimeout,
     overwriteRequire
 }:innerRunParamsType) {
     const vmRequire:Function = genModuleRequire({
@@ -129,6 +129,13 @@ function innerRun({
     const moduleParamsKeys = Object.keys(moduleParams)
     if(!context.moduleData) {context.moduleData = {}}
     context.moduleData[filename] = moduleParams;
+    const vmOption:any = {
+        filename:filename,
+        lineOffset:1,
+    }
+    if(vmTimeout>0) {
+        vmOption.timeout = vmTimeout
+    }
     vm.runInContext(
         `moduleData['${filename}'].moduleFunction = function (
             ${moduleParamsKeys.join(',')}
@@ -138,11 +145,7 @@ function innerRun({
         moduleData['${filename}'].moduleFunction(
             ${moduleParamsKeys.map(key=>`moduleData['${filename}'].${key}`).join(',')}
         )`, 
-        context, {
-            filename:filename,
-            lineOffset:1,
-            timeout:vmTimeout
-        }
+        context, vmOption
     )
     return vmModule.exports;
 }
@@ -151,7 +154,7 @@ export function dynamicRun({
     code,
     filename,
     extendVer={},
-    vmTimeout=30000,
+    vmTimeout=0,
     overwriteRequire=()=>{}
 }:DynamicRunParamsType) {
     if(!path.isAbsolute(filename)) {
