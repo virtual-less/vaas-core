@@ -1,9 +1,11 @@
 import * as assert from 'assert'
+import {describe, it} from 'mocha';
 import * as path from 'path'
 import { dynamicRun, proxyData } from '../index'
 
-const testUnit = {
-    [Symbol('test.run.add')] : async function() {
+
+describe('test', function () {
+    it('test.run.add', async function() {
         const exports = dynamicRun({
             code:`
                 let res = 1+1;
@@ -16,8 +18,9 @@ const testUnit = {
             2,
             'test.run.add error'
         )
-    },
-    [Symbol('test.scope.extendVer')] : async function() {
+    });
+
+    it('test.scope.extendVer', async function() {
         const hello = {}
         const exports = dynamicRun({
             code:`
@@ -34,8 +37,9 @@ const testUnit = {
             1,
             'test.scope.extendVer error'
         )
-    },
-    [Symbol('test.scope.extendVer.Array')] : async function() {
+    });
+
+    it('test.scope.extendVer.Array', async function() {
         const exports = dynamicRun({
             code:`
                 exports.res=Array;
@@ -50,8 +54,9 @@ const testUnit = {
             null,
             'test.scope.extendVer.Array error'
         )
-    },
-    [Symbol('test.scope.process')] : async function() {
+    });
+
+    it('test.scope.process', async function() {
         dynamicRun({
             code:`
                 process.env.a = 1
@@ -67,8 +72,9 @@ const testUnit = {
             1,
             'test.scope.process error'
         )
-    },
-    [Symbol('test.scope.process.proxyData')] : async function() {
+    });
+
+    it('test.scope.process.proxyData', async function() {
         dynamicRun({
             code:`
                 process.env.b = 1
@@ -84,8 +90,9 @@ const testUnit = {
             undefined,
             'test.scope.process.proxyData error'
         )
-    },
-    [Symbol('test.scope.instanceof')] : async function() {
+    });
+
+    it('test.scope.instanceof', async function() {
         const extendVer:{[key:string]:any} = {}
         const exports = dynamicRun({
             code:`
@@ -100,8 +107,9 @@ const testUnit = {
             true,
             'test.scope.instanceof error'
         )
-    },
-    [Symbol('test.scope.Array')] : async function() {
+    });
+
+    it('test.scope.Array', async function() {
         dynamicRun({
             code:`
             Array.aaa = 111
@@ -114,8 +122,9 @@ const testUnit = {
             undefined,
             'test.scope.Array error'
         )
-    },
-    [Symbol('test.require')] : async function() {
+    });
+
+    it('test.require', async function() {
         const exports = dynamicRun({
             code:`
             exports.res = require('./a.js')
@@ -127,8 +136,9 @@ const testUnit = {
             {name:'a'},
             'test.require error'
         )
-    },
-    [Symbol('test.vmTimeout')] : async function() {
+    });
+
+    it('test.vmTimeout', async function() {
         try {
             dynamicRun({
                 code:`
@@ -145,39 +155,25 @@ const testUnit = {
             )
         }
         
-    },
-    [Symbol('test.overwriteRequire')] : async function() {
-            const exports = dynamicRun({
-                code:`
-                exports.fs = require('fs')
-                `,
-                filename:path.join(__dirname,'test.overwriteRequire.js'),
-                vmTimeout:3000,
-                overwriteRequire:(callbackData)=>{
-                    return callbackData.modulePath
-                }
-            })
-            assert.equal(
-                exports.fs,
-                'fs',
-                'test.overwriteRequire error'
-            )
-    },
-}
+    });
 
+    it('test.overwriteRequire', async function() {
+        const exports = dynamicRun({
+            code:`
+            exports.fs = require('fs')
+            `,
+            filename:path.join(__dirname,'test.overwriteRequire.js'),
+            vmTimeout:3000,
+            overwriteRequire:(callbackData)=>{
+                return callbackData.modulePath
+            }
+        })
+        assert.equal(
+            exports.fs,
+            'fs',
+            'test.overwriteRequire error'
+        )
+    });
 
-async function run(testUnitList) {
-    for(let testUnitValue of testUnitList) {
-        for(let testFunc of Object.getOwnPropertySymbols(testUnitValue)) {
-            await testUnitValue[testFunc]();
-        }
-    }
-}
-(async function() {
-    try{
-        await run([testUnit]);
-    } catch(err) {
-        console.log(err)
-    }
-})();
+})
 
