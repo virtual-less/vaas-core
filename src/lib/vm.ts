@@ -21,7 +21,10 @@ export interface OverwriteRequire{
     }): any
   }
 interface innerRunParamsType extends DynamicRunParamsType  {
-    context?:vm.Context,
+    vmTimeout:number,
+    extendVer:NodeJS.Dict<any>,
+    overwriteRequire:OverwriteRequire
+    context:vm.Context,
 }
 
 function genModuleRequire({
@@ -49,6 +52,7 @@ function genModuleRequire({
             filename:modulePath, 
             context,
             extendVer,
+            overwriteRequire
         })
     }
 }

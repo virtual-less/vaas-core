@@ -1,6 +1,6 @@
 {
   "name": "vaas-core",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Virtual as a Service Core",
   "main": "./build/index.js",
   "scripts": {
