@@ -15,7 +15,16 @@ import { dynamicRun, proxyData } from 'vaas-core'
         let res = 1+1;
         exports.res=res;
     `,
-    filename:path.join(__dirname,'test.js'),
+    filepath:path.join(__dirname,'test.js'),
+    overwriteReadCodeSync:(filepath)=>{
+        if(filepath===path.join(__dirname,'test.js')) {
+            return `
+                let res = 1+1;
+                exports.res=res;
+            `
+        }
+        return fs.readFileSync(filepath).toString()
+    },
     extendVer:{
         var1:'data',
         var2:{key:'data'},

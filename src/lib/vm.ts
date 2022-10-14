@@ -5,54 +5,54 @@ import * as  vm from 'vm';
 import * as  os from 'os';
 
 export interface DynamicRunParamsType {
-    code:string,
-    filename:string,
+    filepath:string,
     vmTimeout?:number,
     extendVer?:NodeJS.Dict<any>,
     overwriteRequire?:OverwriteRequire
+    overwriteReadCodeSync?:OverwriteReadCodeSync
 }
 
 export interface OverwriteRequire{
     (callbackData:{
         nativeRequire:NodeRequire,
-        filename:string,
+        filepath:string,
         moduleId:string,
         modulePath:string
     }): any
-  }
-interface innerRunParamsType extends DynamicRunParamsType  {
+}
+export interface OverwriteReadCodeSync{
+    (filepath:string): string
+}
+interface InnerRunParamsType extends DynamicRunParamsType  {
+    context:vm.Context,
     vmTimeout:number,
     extendVer:NodeJS.Dict<any>,
     overwriteRequire:OverwriteRequire
-    context:vm.Context,
+    overwriteReadCodeSync:OverwriteReadCodeSync
 }
 
 function genModuleRequire({
-    filename, vmTimeout, context, extendVer, overwriteRequire
-}:{
-    filename:string,
-    vmTimeout:number,
-    context:vm.Context,
-    extendVer:NodeJS.Dict<any>,
-    overwriteRequire:OverwriteRequire
-}):Function {
+    filepath, vmTimeout, 
+    context, extendVer, overwriteRequire,
+    overwriteReadCodeSync
+}:InnerRunParamsType):Function {
     return (moduleId) => {
-        const nativeRequire:NodeRequire = createRequire(filename);
+        const nativeRequire:NodeRequire = createRequire(filepath);
         const modulePath = nativeRequire.resolve(moduleId);
         const module = overwriteRequire({
             nativeRequire,
-            filename,
+            filepath,
             moduleId,
             modulePath
         })
         if(module) {return module}
         return innerRun({
-            code:readFileSync(modulePath).toString(),
             vmTimeout,
-            filename:modulePath, 
+            filepath:modulePath, 
             context,
             extendVer,
-            overwriteRequire
+            overwriteRequire,
+            overwriteReadCodeSync
         })
     }
 }
@@ -108,14 +108,15 @@ export function proxyData<T extends Object>(data:T):T {
 
 function innerRun({
     context,
-    code,
-    filename,
+    filepath,
     extendVer,
     vmTimeout,
-    overwriteRequire
-}:innerRunParamsType) {
+    overwriteRequire,
+    overwriteReadCodeSync
+}:InnerRunParamsType) {
     const vmRequire:Function = genModuleRequire({
-        filename, vmTimeout, context, extendVer, overwriteRequire
+        filepath, vmTimeout, 
+        context, extendVer, overwriteRequire,overwriteReadCodeSync
     });
     
     const vmModule:{
@@ -125,29 +126,29 @@ function innerRun({
         require:vmRequire,
         module:vmModule,
         exports:vmModule.exports,
-        __filename:filename,
-        __dirname:path.dirname(filename),
+        __filename:filepath,
+        __dirname:path.dirname(filepath),
         console:proxyData(console),
         ...extendVer
     }
     const moduleParamsKeys = Object.keys(moduleParams)
     if(!context.moduleData) {context.moduleData = {}}
-    context.moduleData[filename] = moduleParams;
+    context.moduleData[filepath] = moduleParams;
     const vmOption:any = {
-        filename:filename,
+        filename:filepath,
         lineOffset:1,
     }
     if(vmTimeout>0) {
         vmOption.timeout = vmTimeout
     }
     vm.runInContext(
-        `moduleData['${filename}'].moduleFunction = function (
+        `moduleData['${filepath}'].moduleFunction = function (
             ${moduleParamsKeys.join(',')}
         ) {`+os.EOL+
-        code
+        overwriteReadCodeSync(filepath)
         +os.EOL+`};
-        moduleData['${filename}'].moduleFunction(
-            ${moduleParamsKeys.map(key=>`moduleData['${filename}'].${key}`).join(',')}
+        moduleData['${filepath}'].moduleFunction(
+            ${moduleParamsKeys.map(key=>`moduleData['${filepath}'].${key}`).join(',')}
         )`, 
         context, vmOption
     )
@@ -155,22 +156,22 @@ function innerRun({
 }
 
 export function dynamicRun({
-    code,
-    filename,
+    filepath,
     extendVer={},
     vmTimeout=0,
-    overwriteRequire=()=>{}
+    overwriteRequire=()=>{},
+    overwriteReadCodeSync=(filepath)=>{return readFileSync(filepath).toString()}
 }:DynamicRunParamsType) {
-    if(!path.isAbsolute(filename)) {
-        throw new Error('filename must be absolute path')
+    if(!path.isAbsolute(filepath)) {
+        throw new Error('filepath must be absolute path')
     }
     const context = vm.createContext()
     return innerRun({
         context,
-        code,
         extendVer,
-        filename,
+        filepath,
         vmTimeout,
-        overwriteRequire
+        overwriteRequire,
+        overwriteReadCodeSync
     })
 }

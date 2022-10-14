@@ -1,17 +1,20 @@
 import * as assert from 'assert'
 import {describe, it} from 'mocha';
 import * as path from 'path'
+import * as fs from 'fs'
 import { dynamicRun, proxyData } from '../index'
 
 
 describe('test', function () {
     it('test.run.add', async function() {
         const exports = dynamicRun({
-            code:`
+            filepath:path.join(__dirname,'test.run.add.js'),
+            overwriteReadCodeSync:()=>{
+                return `
                 let res = 1+1;
                 exports.res=res;
-            `,
-            filename:path.join(__dirname,'test.run.add.js')
+            `
+            }
         })
         assert.equal(
             exports.res,
@@ -23,11 +26,13 @@ describe('test', function () {
     it('test.scope.extendVer', async function() {
         const hello = {}
         const exports = dynamicRun({
-            code:`
+            filepath:path.join(__dirname,'test.scope.extendVer.js'),
+            overwriteReadCodeSync:()=>{
+                return `
                 hello.a = 1
                 exports.hello=hello;
-            `,
-            filename:path.join(__dirname,'test.scope.extendVer.js'),
+            `
+            },
             extendVer:{
                 hello
             }
@@ -41,10 +46,10 @@ describe('test', function () {
 
     it('test.scope.extendVer.Array', async function() {
         const exports = dynamicRun({
-            code:`
-                exports.res=Array;
-            `,
-            filename:path.join(__dirname,'test.scope.extendVer.Array.js'),
+            filepath:path.join(__dirname,'test.scope.extendVer.Array.js'),
+            overwriteReadCodeSync:()=>{
+                return `exports.res=Array;`
+            },
             extendVer:{
                 Array:null
             }
@@ -58,10 +63,10 @@ describe('test', function () {
 
     it('test.scope.process', async function() {
         dynamicRun({
-            code:`
-                process.env.a = 1
-            `,
-            filename:path.join(__dirname,'test.scope.process.js'),
+            filepath:path.join(__dirname,'test.scope.process.js'),
+            overwriteReadCodeSync:()=>{
+                return `process.env.a = 1`
+            },
             extendVer:{
                 process
             }
@@ -76,10 +81,10 @@ describe('test', function () {
 
     it('test.scope.process.proxyData', async function() {
         dynamicRun({
-            code:`
-                process.env.b = 1
-            `,
-            filename:path.join(__dirname,'test.scope.process.js'),
+            filepath:path.join(__dirname,'test.scope.process.js'),
+            overwriteReadCodeSync:()=>{
+                return `process.env.b = 1`
+            },
             extendVer:{
                 process:proxyData(process)
             }
@@ -95,11 +100,17 @@ describe('test', function () {
     it('test.scope.instanceof', async function() {
         const extendVer:{[key:string]:any} = {}
         const exports = dynamicRun({
-            code:`
-            const instanceofHello = require('./instanceof.js')
-            exports.res= instanceofHello.hello instanceof Array
-            `,
-            filename:path.join(__dirname,'test.scope.instanceof.js'),
+            filepath:path.join(__dirname,'test.scope.instanceof.js'),
+            overwriteReadCodeSync:(filepath)=>{
+                if(filepath===path.join(__dirname,'test.scope.instanceof.js')) {
+                    return `
+                    const instanceofHello = require('./instanceof.js')
+                    exports.res= instanceofHello.hello instanceof Array
+                    `
+                }
+                return fs.readFileSync(filepath).toString()
+                
+            },
             extendVer
         })
         assert.equal(
@@ -111,10 +122,10 @@ describe('test', function () {
 
     it('test.scope.Array', async function() {
         dynamicRun({
-            code:`
-            Array.aaa = 111
-            `,
-            filename:path.join(__dirname,'test.scope.Array.js'),
+            filepath:path.join(__dirname,'test.scope.Array.js'),
+            overwriteReadCodeSync:()=>{
+                return `Array.aaa = 111`
+            },
         })
         assert.equal(
             // @ts-ignore
@@ -126,10 +137,13 @@ describe('test', function () {
 
     it('test.require', async function() {
         const exports = dynamicRun({
-            code:`
-            exports.res = require('./a.js')
-            `,
-            filename:path.join(__dirname,'test.require.js'),
+            filepath:path.join(__dirname,'test.require.js'),
+            overwriteReadCodeSync:(filepath)=>{
+                if(filepath===path.join(__dirname,'test.require.js')) {
+                    return `exports.res = require('./a.js')`
+                }
+                return fs.readFileSync(filepath).toString()
+            },
         })
         assert.deepEqual(
             exports.res,
@@ -141,11 +155,11 @@ describe('test', function () {
     it('test.vmTimeout', async function() {
         try {
             dynamicRun({
-                code:`
-                while(true) {}
-                `,
-                filename:path.join(__dirname,'test.vmTimeout.js'),
-                vmTimeout:3000
+                filepath:path.join(__dirname,'test.vmTimeout.js'),
+                vmTimeout:3000,
+                overwriteReadCodeSync:()=>{
+                    return `while(true) {}`
+                },
             })
         } catch (error) {
             assert.deepEqual(
@@ -159,14 +173,14 @@ describe('test', function () {
 
     it('test.overwriteRequire', async function() {
         const exports = dynamicRun({
-            code:`
-            exports.fs = require('fs')
-            `,
-            filename:path.join(__dirname,'test.overwriteRequire.js'),
+            filepath:path.join(__dirname,'test.overwriteRequire.js'),
             vmTimeout:3000,
             overwriteRequire:(callbackData)=>{
                 return callbackData.modulePath
-            }
+            },
+            overwriteReadCodeSync:()=>{
+                return `exports.fs = require('fs')`
+            },
         })
         assert.equal(
             exports.fs,
