@@ -114,14 +114,19 @@ function innerRun({
     overwriteRequire,
     overwriteReadCodeSync
 }:InnerRunParamsType) {
+    if(context.moduleCache[filepath]) {
+        return context.moduleCache[filepath]
+    }
+    const vmModule:{
+        exports:NodeJS.Dict<any>
+    } = {exports:{}}
+    // 为什么要设置moduleCache，原因是解决相互引用死循环问题,且导出变量为默认的exports值
+    context.moduleCache[filepath] = vmModule.exports
     const vmRequire:Function = genModuleRequire({
         filepath, vmTimeout, 
         context, extendVer, overwriteRequire,overwriteReadCodeSync
     });
     
-    const vmModule:{
-        exports:NodeJS.Dict<any>
-    } = {exports:{}}
     const moduleParams = {
         require:vmRequire,
         module:vmModule,
@@ -132,7 +137,6 @@ function innerRun({
         ...extendVer
     }
     const moduleParamsKeys = Object.keys(moduleParams)
-    if(!context.moduleData) {context.moduleData = {}}
     context.moduleData[filepath] = moduleParams;
     const vmOption:any = {
         filename:filepath,
@@ -152,7 +156,9 @@ function innerRun({
         )`, 
         context, vmOption
     )
-    return vmModule.exports;
+    // 这里是处理module.exports重新被赋值问题
+    context.moduleCache[filepath] =  vmModule.exports;
+    return context.moduleCache[filepath]
 }
 
 export function dynamicRun({
@@ -165,7 +171,10 @@ export function dynamicRun({
     if(!path.isAbsolute(filepath)) {
         throw new Error('filepath must be absolute path')
     }
-    const context = vm.createContext()
+    const context = vm.createContext({
+        moduleData:{},
+        moduleCache:{}
+    })
     return innerRun({
         context,
         extendVer,
