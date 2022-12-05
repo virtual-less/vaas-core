@@ -79,7 +79,6 @@ export function proxyData<T extends Object>(data:T):T {
             return proxyData(Reflect.getPrototypeOf(target));
         },
         getOwnPropertyDescriptor(target, propKey) {
-            console.log()
             if(!proxyValue[propKey]) {
                 Reflect.getOwnPropertyDescriptor(target, propKey)
             }
