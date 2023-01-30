@@ -11,10 +11,6 @@ npm i vaas-core
 import { dynamicRun, proxyData } from 'vaas-core'
 
  const exports = dynamicRun({
-    code:`
-        let res = 1+1;
-        exports.res=res;
-    `,
     filepath:path.join(__dirname,'test.js'),
     overwriteReadCodeSync:(filepath)=>{
         if(filepath===path.join(__dirname,'test.js')) {
