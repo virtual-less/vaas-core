@@ -171,6 +171,22 @@ describe('test', function () {
         
     });
 
+    it('test.buffer', async function() {
+        const exports = dynamicRun({
+            filepath:path.join(__dirname,'test.buffer.js'),
+            vmTimeout:3000,
+            isGlobalContext: true,
+            overwriteReadCodeSync:()=>{
+                return `exports.buf = Buffer.from([1]).toString()`
+            },
+        })
+        assert.equal(
+            exports.buf,
+            Buffer.from([1]).toString(),
+            'test.buffer error'
+        )
+    });
+
     it('test.overwriteRequire', async function() {
         const exports = dynamicRun({
             filepath:path.join(__dirname,'test.overwriteRequire.js'),

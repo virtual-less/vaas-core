@@ -8,6 +8,7 @@ export interface DynamicRunParamsType {
     filepath:string,
     vmTimeout?:number,
     extendVer?:NodeJS.Dict<any>,
+    isGlobalContext?:boolean,
     overwriteRequire?:OverwriteRequire
     overwriteReadCodeSync?:OverwriteReadCodeSync
 }
@@ -33,8 +34,8 @@ interface InnerRunParamsType extends DynamicRunParamsType  {
 
 function genModuleRequire({
     filepath, vmTimeout, 
-    context, extendVer, overwriteRequire,
-    overwriteReadCodeSync
+    context, extendVer, isGlobalContext,
+    overwriteRequire, overwriteReadCodeSync
 }:InnerRunParamsType):Function {
     return (moduleId) => {
         const nativeRequire:NodeRequire = createRequire(filepath);
@@ -51,6 +52,7 @@ function genModuleRequire({
             filepath:modulePath, 
             context,
             extendVer,
+            isGlobalContext,
             overwriteRequire,
             overwriteReadCodeSync
         })
@@ -109,6 +111,7 @@ function innerRun({
     context,
     filepath,
     extendVer,
+    isGlobalContext,
     vmTimeout,
     overwriteRequire,
     overwriteReadCodeSync
@@ -123,7 +126,8 @@ function innerRun({
     context.moduleCache[filepath] = vmModule.exports
     const vmRequire:Function = genModuleRequire({
         filepath, vmTimeout, 
-        context, extendVer, overwriteRequire,overwriteReadCodeSync
+        context, extendVer, isGlobalContext, 
+        overwriteRequire,overwriteReadCodeSync
     });
     
     const moduleParams = {
@@ -144,17 +148,19 @@ function innerRun({
     if(vmTimeout>0) {
         vmOption.timeout = vmTimeout
     }
-    vm.runInContext(
-        `moduleData['${filepath}'].moduleFunction = function (
-            ${moduleParamsKeys.join(',')}
-        ) {`+os.EOL+
-        overwriteReadCodeSync(filepath)
-        +os.EOL+`};
-        moduleData['${filepath}'].moduleFunction(
-            ${moduleParamsKeys.map(key=>`moduleData['${filepath}'].${key}`).join(',')}
-        )`, 
-        context, vmOption
-    )
+    const code = `moduleData['${filepath}'].moduleFunction = function (
+        ${moduleParamsKeys.join(',')}
+    ) {`+os.EOL+
+    overwriteReadCodeSync(filepath)
+    +os.EOL+`};
+    moduleData['${filepath}'].moduleFunction(
+        ${moduleParamsKeys.map(key=>`moduleData['${filepath}'].${key}`).join(',')}
+    )`
+    if(context.isGlobalContext) {
+        vm.runInThisContext(code, vmOption)
+    } else {
+        vm.runInContext(code, context, vmOption)
+    }
     // 这里是处理module.exports重新被赋值问题
     context.moduleCache[filepath] =  vmModule.exports;
     return context.moduleCache[filepath]
@@ -164,19 +170,28 @@ export function dynamicRun({
     filepath,
     extendVer={},
     vmTimeout=0,
+    isGlobalContext=false,
     overwriteRequire=()=>{},
     overwriteReadCodeSync=(filepath)=>{return readFileSync(filepath).toString()}
 }:DynamicRunParamsType) {
     if(!path.isAbsolute(filepath)) {
         throw new Error('filepath must be absolute path')
     }
-    const context = vm.createContext({
+    const contextObj = {
         moduleData:{},
         moduleCache:{}
-    })
+    }
+    let context;
+    if(isGlobalContext) {
+        context = vm.createContext(Object.assign(globalThis,contextObj))
+    } else {
+        context = vm.createContext(contextObj)
+    }
+    
     return innerRun({
         context,
         extendVer,
+        isGlobalContext,
         filepath,
         vmTimeout,
         overwriteRequire,
