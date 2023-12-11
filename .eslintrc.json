@@ -8,5 +8,9 @@
         "ecmaVersion": "latest"
     },
     "rules": {
+        "@typescript-eslint/strict-boolean-expressions":"off",
+        "@typescript-eslint/no-unsafe-argument":"off",
+        "eslint-disable @typescript-eslint/ban-types":"off",
+        "@typescript-eslint/prefer-nullish-coalescing": "off"
     }
 }
