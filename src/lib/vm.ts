@@ -23,14 +23,13 @@ export type OverwriteReadCodeSync = (filepath: string) => string
 interface InnerRunParamsType extends DynamicRunParamsType {
   context: vm.Context
   vmTimeout: number
-  extendVer: NodeJS.Dict<any>
   overwriteRequire: OverwriteRequire
   overwriteReadCodeSync: OverwriteReadCodeSync
 }
 
 function genModuleRequire ({
   filepath, vmTimeout,
-  context, extendVer, isGlobalContext,
+  context, isGlobalContext,
   overwriteRequire, overwriteReadCodeSync
 }: InnerRunParamsType): Function {
   return (moduleId) => {
@@ -47,7 +46,6 @@ function genModuleRequire ({
       vmTimeout,
       filepath: modulePath,
       context,
-      extendVer,
       isGlobalContext,
       overwriteRequire,
       overwriteReadCodeSync
@@ -106,7 +104,6 @@ export function proxyData<T extends Object> (data: T): T {
 function innerRun ({
   context,
   filepath,
-  extendVer,
   isGlobalContext,
   vmTimeout,
   overwriteRequire,
@@ -124,7 +121,6 @@ function innerRun ({
     filepath,
     vmTimeout,
     context,
-    extendVer,
     isGlobalContext,
     overwriteRequire,
     overwriteReadCodeSync
@@ -136,8 +132,6 @@ function innerRun ({
     exports: vmModule.exports,
     __filename: filepath,
     __dirname: path.dirname(filepath),
-    console: proxyData(console),
-    ...extendVer
   }
   const moduleParamsKeys = Object.keys(moduleParams)
   context.moduleData[filepath] = moduleParams
@@ -179,7 +173,8 @@ export function dynamicRun ({
   }
   const contextObj = {
     moduleData: {},
-    moduleCache: {}
+    moduleCache: {},
+    ...extendVer
   }
   let context
   if (isGlobalContext) {
@@ -190,7 +185,6 @@ export function dynamicRun ({
 
   return innerRun({
     context,
-    extendVer,
     isGlobalContext,
     filepath,
     vmTimeout,

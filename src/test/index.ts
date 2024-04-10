@@ -182,6 +182,27 @@ describe('test', function () {
     )
   })
 
+  it('test.process', async function () {
+    const exports = dynamicRun({
+      filepath: path.join(__dirname, 'test.process.js'),
+      vmTimeout: 3000,
+      extendVer:{
+        process:{pid:process.pid}
+      },
+      overwriteReadCodeSync: () => {
+        return `
+          const process = ${JSON.stringify({pid:process.pid})}
+          exports.process = process
+        `
+      }
+    })
+    assert.equal(
+      exports.process.pid,
+      process.pid,
+      'test.process error'
+    )
+  })
+
   it('test.overwriteRequire', async function () {
     const exports = dynamicRun({
       filepath: path.join(__dirname, 'test.overwriteRequire.js'),
