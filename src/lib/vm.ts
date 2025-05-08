@@ -3,6 +3,7 @@ import { createRequire } from 'module'
 import * as path from 'path'
 import * as vm from 'vm'
 import * as os from 'os'
+import * as crypto from 'crypto'
 
 export interface DynamicRunParamsType {
   filepath: string
@@ -109,14 +110,15 @@ function innerRun ({
   overwriteRequire,
   overwriteReadCodeSync
 }: InnerRunParamsType): any {
-  if (context.moduleCache[filepath]) {
-    return context.moduleCache[filepath]
+  const moduleHash = crypto.createHash('sha256').update(filepath).digest('hex')
+  if (context.moduleCache[moduleHash]) {
+    return context.moduleCache[moduleHash]
   }
   const vmModule: {
     exports: NodeJS.Dict<any>
   } = { exports: {} }
   // 为什么要设置moduleCache，原因是解决相互引用死循环问题,且导出变量为默认的exports值
-  context.moduleCache[filepath] = vmModule.exports
+  context.moduleCache[moduleHash] = vmModule.exports
   const vmRequire: Function = genModuleRequire({
     filepath,
     vmTimeout,
@@ -134,7 +136,7 @@ function innerRun ({
     __dirname: path.dirname(filepath),
   }
   const moduleParamsKeys = Object.keys(moduleParams)
-  context.moduleData[filepath] = moduleParams
+  context.moduleData[moduleHash] = moduleParams
   const vmOption: any = {
     filename: filepath,
     lineOffset: 1
@@ -142,13 +144,13 @@ function innerRun ({
   if (vmTimeout > 0) {
     vmOption.timeout = vmTimeout
   }
-  const code = `moduleData['${filepath}'].moduleFunction = function (
+  const code = `moduleData['${moduleHash}'].moduleFunction = function (
         ${moduleParamsKeys.join(',')}
     ) {` + os.EOL +
     overwriteReadCodeSync(filepath) +
     os.EOL + `};
-    moduleData['${filepath}'].moduleFunction(
-        ${moduleParamsKeys.map(key => `moduleData['${filepath}'].${key}`).join(',')}
+    moduleData['${moduleHash}'].moduleFunction(
+        ${moduleParamsKeys.map(key => `moduleData['${moduleHash}'].${key}`).join(',')}
     )`
   if (context.isGlobalContext) {
     vm.runInThisContext(code, vmOption)
@@ -156,8 +158,8 @@ function innerRun ({
     vm.runInContext(code, context, vmOption)
   }
   // 这里是处理module.exports重新被赋值问题
-  context.moduleCache[filepath] = vmModule.exports
-  return context.moduleCache[filepath]
+  context.moduleCache[moduleHash] = vmModule.exports
+  return context.moduleCache[moduleHash]
 }
 
 export function dynamicRun ({
